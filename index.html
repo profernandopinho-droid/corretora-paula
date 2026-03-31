@@ -2342,6 +2342,8 @@ function gerarMensagem(){
     return;
   }
 
+  // Ordenar selecionados pela ordem visual (ID crescente = ordem de cadastro)
+  sels.sort((a,b) => a.id - b.id);
   const primeiro = sels[0];
   let msg = '';
 
@@ -2349,7 +2351,6 @@ function gerarMensagem(){
     const textoBase = document.getElementById('msg-personalizada')?.value?.trim() || '';
     if(!textoBase){
       document.getElementById('msg-output').textContent = `Olá, *${primeiro.nome.split(' ')[0]}*!\n\n(escreva sua mensagem no campo acima ☝️)`;
-      // Fix tablet: mostrar botão mesmo sem texto, desabilitado com aviso
       if(btnIniciar){
         btnIniciar.style.display='';
         btnIniciar.textContent = '✏️ Escreva a mensagem acima primeiro';
@@ -2367,11 +2368,8 @@ function gerarMensagem(){
       if(btnIniciar) btnIniciar.style.display='none';
       return;
     }
-    // Usa edição manual SE existir no campo
-    const editado = document.getElementById('msg-custom')?.value?.trim();
-    const msgOriginal = tpl.texto(primeiro, emp);
-    msg = (editado && editado !== msgOriginal) ? editado : msgOriginal;
-    // Se tem edição manual, usa ela também no preview
+    // Sempre gera mensagem fresca com o nome correto do contato selecionado
+    msg = tpl.texto(primeiro, emp);
     document.getElementById('msg-custom').value = msg;
   }
 
@@ -2382,6 +2380,8 @@ function gerarMensagem(){
 
   if(btnIniciar){
     btnIniciar.style.display='';
+    btnIniciar.style.opacity='1';
+    btnIniciar.onclick = iniciarEnvioSequencial;
     btnIniciar.textContent = sels.length === 1
       ? `📲 Enviar para ${primeiro.nome.split(' ')[0]}`
       : `🚀 Iniciar envio — ${sels.length} contatos`;
