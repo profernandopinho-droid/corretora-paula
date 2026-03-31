@@ -535,6 +535,7 @@ tr:hover td{background:rgba(255,255,255,0.018);}
           <div class="section-title" style="margin:0">Selecionar contatos</div>
           <span class="sel-count" id="sel-count">0 selecionados</span>
         </div>
+        <div id="msg-grupo-label" style="font-size:0.72rem;color:var(--gold2);font-weight:600;margin-bottom:6px;padding:3px 8px;background:rgba(201,168,76,0.1);border-radius:6px;display:inline-block"></div>
         <input class="search-box" id="msg-busca" type="text" placeholder="🔍 Buscar contato..." oninput="renderCheckContatos()" style="width:100%;margin-bottom:8px">
         <div class="contatos-check-list" id="contatos-check-list"></div>
         <div class="sel-actions">
@@ -654,6 +655,18 @@ tr:hover td{background:rgba(255,255,255,0.018);}
     </div>
   </div>
   <div class="grid3" id="rel-cards"></div>
+
+  <!-- RELATÓRIO DE ENVIOS -->
+  <div style="margin-top:28px">
+    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px">📨 Registros de Envio</div>
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="filter-pill active" id="rel-filtro-semana" onclick="setRelFiltro('semana',this)">Esta semana</button>
+      <button class="filter-pill" id="rel-filtro-mes" onclick="setRelFiltro('mes',this)">Este mês</button>
+      <button class="filter-pill" id="rel-filtro-tudo" onclick="setRelFiltro('tudo',this)">Tudo</button>
+    </div>
+    <div class="grid3" id="rel-envio-cards" style="margin-bottom:16px"></div>
+    <div id="rel-envios-lista"></div>
+  </div>
 </div>
 
 <!-- AGENDA -->
@@ -1789,9 +1802,22 @@ let envioAtual = 0;
 
 function renderCheckContatos() {
   const busca = (document.getElementById('msg-busca')?.value || '').toLowerCase();
-  const lista = contatos.filter(c => !busca || c.nome.toLowerCase().includes(busca));
+  // Filtra pelo grupo ativo (mesmo da tela de contatos)
+  let lista = contatos.filter(c => {
+    if (grupoAtivo === 'todos') return true;
+    if (grupoAtivo.startsWith('_')) return c.status === grupoAtivo.slice(1);
+    return (c.origem || '') === grupoAtivo;
+  });
+  if (busca) lista = lista.filter(c => c.nome.toLowerCase().includes(busca));
   const el = document.getElementById('contatos-check-list');
   if (!el) return;
+  // Mostra grupo ativo na tela de mensagens
+  const labelGrupo = document.getElementById('msg-grupo-label');
+  if (labelGrupo) {
+    labelGrupo.textContent = grupoAtivo === 'todos' ? 'Todos os contatos' :
+      grupoAtivo.startsWith('_') ? (STATUS_LABEL[grupoAtivo.slice(1)] || grupoAtivo.slice(1)) :
+      grupoAtivo;
+  }
   el.innerHTML = lista.map(c => `
     <label class="contato-check-item">
       <input type="checkbox" ${contatosSelecionados.has(c.id)?'checked':''} onchange="toggleContato(${c.id},this.checked)">
@@ -1810,7 +1836,13 @@ function toggleContato(id, checked) {
 
 function selecionarTodos() {
   const busca = (document.getElementById('msg-busca')?.value || '').toLowerCase();
-  contatos.filter(c => !busca || c.nome.toLowerCase().includes(busca)).forEach(c => contatosSelecionados.add(c.id));
+  let lista = contatos.filter(c => {
+    if (grupoAtivo === 'todos') return true;
+    if (grupoAtivo.startsWith('_')) return c.status === grupoAtivo.slice(1);
+    return (c.origem || '') === grupoAtivo;
+  });
+  if (busca) lista = lista.filter(c => c.nome.toLowerCase().includes(busca));
+  lista.forEach(c => contatosSelecionados.add(c.id));
   renderCheckContatos(); gerarMensagem();
 }
 
@@ -2317,10 +2349,17 @@ function gerarMensagem(){
     const textoBase = document.getElementById('msg-personalizada')?.value?.trim() || '';
     if(!textoBase){
       document.getElementById('msg-output').textContent = `Olá, *${primeiro.nome.split(' ')[0]}*!\n\n(escreva sua mensagem no campo acima ☝️)`;
-      if(btnIniciar) btnIniciar.style.display='none';
+      // Fix tablet: mostrar botão mesmo sem texto, desabilitado com aviso
+      if(btnIniciar){
+        btnIniciar.style.display='';
+        btnIniciar.textContent = '✏️ Escreva a mensagem acima primeiro';
+        btnIniciar.style.opacity='0.5';
+        btnIniciar.onclick = () => { document.getElementById('msg-personalizada')?.focus(); mostrarToast('Escreva sua mensagem no campo acima!'); };
+      }
       if(hint) hint.style.display='none';
       return;
     }
+    if(btnIniciar) { btnIniciar.style.opacity='1'; btnIniciar.onclick = iniciarEnvioSequencial; }
     msg = `Olá, *${primeiro.nome.split(' ')[0]}*!\n\n${textoBase}`;
   } else {
     const tpl = TEMPLATES.find(t=>t.id===templateAtivo);
@@ -2454,6 +2493,79 @@ function renderRelatorios(){
     <div class="metric-card" style="--ac:var(--green)"><div class="metric-label">Taxa de conversão</div><div class="metric-value" style="color:var(--green)">${contatos.length>0?Math.round(fechados/contatos.length*100):0}%</div><div class="metric-sub">${fechados} de ${contatos.length} fechados</div></div>
     <div class="metric-card" style="--ac:var(--amber)"><div class="metric-label">Follow-ups vencidos</div><div class="metric-value" style="color:${vencidos>0?'var(--red)':'var(--muted)'}">${vencidos}</div><div class="metric-sub">${comFU} com agendamento</div></div>
     <div class="metric-card" style="--ac:var(--purple)"><div class="metric-label">Contatos com etiqueta</div><div class="metric-value" style="color:var(--purple)">${comTag}</div><div class="metric-sub">de ${contatos.length} total</div></div>`;
+  renderRelEnvios();
+}
+
+// ── RELATÓRIO DE ENVIOS ──
+let relFiltroAtivo = 'semana';
+function setRelFiltro(f, btn) {
+  relFiltroAtivo = f;
+  document.querySelectorAll('#page-relatorios .filter-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRelEnvios();
+}
+
+function renderRelEnvios() {
+  const agora = new Date();
+  const inicioSemana = new Date(agora); inicioSemana.setDate(agora.getDate() - agora.getDay()); inicioSemana.setHours(0,0,0,0);
+  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+
+  // Coletar todos os envios do histórico
+  const envios = [];
+  contatos.forEach(c => {
+    (c.historico || []).forEach(h => {
+      if (h.tipo === 'mensagem') {
+        const data = new Date(h.data);
+        envios.push({ nome: c.nome, tel: c.tel, texto: h.texto, data, contato: c });
+      }
+    });
+  });
+
+  // Filtrar por período
+  const filtrados = envios.filter(e => {
+    if (relFiltroAtivo === 'semana') return e.data >= inicioSemana;
+    if (relFiltroAtivo === 'mes') return e.data >= inicioMes;
+    return true;
+  }).sort((a, b) => b.data - a.data);
+
+  // Cards de métricas
+  const totalEnvios = filtrados.length;
+  const contatosUnicos = new Set(filtrados.map(e => e.contato.id)).size;
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const envioshoje = filtrados.filter(e => e.data >= hoje).length;
+
+  document.getElementById('rel-envio-cards').innerHTML = `
+    <div class="metric-card" style="--ac:var(--blue)">
+      <div class="metric-label">Total de envios</div>
+      <div class="metric-value" style="color:var(--blue)">${totalEnvios}</div>
+      <div class="metric-sub">no período</div>
+    </div>
+    <div class="metric-card" style="--ac:var(--gold)">
+      <div class="metric-label">Contatos alcançados</div>
+      <div class="metric-value" style="color:var(--gold2)">${contatosUnicos}</div>
+      <div class="metric-sub">pessoas diferentes</div>
+    </div>
+    <div class="metric-card" style="--ac:var(--green)">
+      <div class="metric-label">Enviados hoje</div>
+      <div class="metric-value" style="color:var(--green)">${envioshoje}</div>
+      <div class="metric-sub">mensagens</div>
+    </div>`;
+
+  // Lista de envios
+  const el = document.getElementById('rel-envios-lista');
+  if (!filtrados.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><p>Nenhum envio registrado neste período.</p></div>';
+    return;
+  }
+  el.innerHTML = filtrados.slice(0, 50).map(e => `
+    <div class="envio-item">
+      <div class="fu-avatar" style="width:34px;height:34px;font-size:0.8rem;flex-shrink:0">${e.nome[0]}</div>
+      <div style="flex:1;min-width:0">
+        <div class="envio-nome">${e.nome}</div>
+        <div style="font-size:0.72rem;color:var(--muted)">${e.texto}</div>
+      </div>
+      <div style="font-size:0.7rem;color:var(--muted2);white-space:nowrap">${fmtDataHora(e.data.toISOString())}</div>
+    </div>`).join('');
 }
 
 // ── AGENDA / CALENDÁRIO ──
