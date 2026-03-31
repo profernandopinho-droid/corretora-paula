@@ -548,6 +548,20 @@ tr:hover td{background:rgba(255,255,255,0.018);}
         <div class="section-title">Empreendimento</div>
         <input id="msg-emp" class="form-input" style="width:100%" placeholder="Ex: Residencial Aurora" oninput="gerarMensagem()">
       </div>
+      <!-- FOLDER/IMAGEM -->
+      <div style="margin-bottom:14px">
+        <div class="section-title">Folder / Imagem <span style="font-size:0.7rem;color:var(--muted);font-weight:400">(opcional)</span></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="flex:1;cursor:pointer">
+            <div id="folder-preview" style="border:1px dashed var(--border2);border-radius:8px;padding:10px;text-align:center;font-size:0.8rem;color:var(--muted);transition:all .2s" 
+              onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border2)'">
+              📎 Toque para selecionar imagem
+            </div>
+            <input type="file" id="folder-input" accept="image/*" style="display:none" onchange="selecionarFolder(this)">
+          </label>
+          <button class="btn sm red" id="folder-remover" style="display:none" onclick="removerFolder()">✕</button>
+        </div>
+      </div>
       <!-- TEMPLATES -->
       <div class="section-title">Template</div>
       <div class="template-list" id="template-list"></div>
@@ -1966,6 +1980,33 @@ function seqRenderAtual() {
   seqRenderEnviados();
 }
 
+// ── FOLDER / IMAGEM ──
+let folderSelecionado = null;
+
+function selecionarFolder(input) {
+  if (!input.files || !input.files[0]) return;
+  folderSelecionado = input.files[0];
+  const preview = document.getElementById('folder-preview');
+  const remover = document.getElementById('folder-remover');
+  preview.innerHTML = `🖼️ <strong>${folderSelecionado.name}</strong>`;
+  preview.style.borderColor = 'var(--gold)';
+  preview.style.color = 'var(--gold2)';
+  if (remover) remover.style.display = '';
+  mostrarToast('Imagem selecionada! Será enviada após a mensagem.');
+}
+
+function removerFolder() {
+  folderSelecionado = null;
+  const preview = document.getElementById('folder-preview');
+  const input = document.getElementById('folder-input');
+  const remover = document.getElementById('folder-remover');
+  preview.innerHTML = '📎 Toque para selecionar imagem';
+  preview.style.borderColor = 'var(--border2)';
+  preview.style.color = 'var(--muted)';
+  if (input) input.value = '';
+  if (remover) remover.style.display = 'none';
+}
+
 function seqAbrirWhatsApp() {
   const btn = document.getElementById('seq-btn-whats');
   const tel = btn.dataset.tel || '';
@@ -1973,6 +2014,23 @@ function seqAbrirWhatsApp() {
   const msg = document.getElementById('seq-msg').innerText || '';
   const num = tel.startsWith('55') ? tel : '55' + tel;
   window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  // Se tem folder/imagem selecionada, abre compartilhamento após 1.5s
+  if (folderSelecionado) {
+    setTimeout(() => {
+      const url = URL.createObjectURL(folderSelecionado);
+      const a = document.createElement('a');
+      // Compartilhar via Web Share API se disponível (mobile)
+      if (navigator.share) {
+        navigator.share({
+          files: [folderSelecionado],
+          title: 'Folder',
+        }).catch(() => {});
+      } else {
+        mostrarToast('📎 Envie o folder manualmente no WhatsApp após a mensagem.');
+      }
+    }, 1500);
+  }
 
   // Registrar no histórico
   const c = seqLista[seqIndex];
@@ -2518,7 +2576,7 @@ function setRelFiltro(f, btn) {
 
 function renderRelEnvios() {
   const agora = new Date();
-  const inicioSemana = new Date(agora); inicioSemana.setDate(agora.getDate() - agora.getDay()); inicioSemana.setHours(0,0,0,0);
+  const inicioSemana = new Date(agora); inicioSemana.setDate(agora.getDate() - 6); inicioSemana.setHours(0,0,0,0);
   const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
 
   // Coletar todos os envios do histórico
