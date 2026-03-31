@@ -2683,14 +2683,35 @@ if(!carregouLocal || contatos.length === 0) {
   contatos = CONTATOS_BASE.map(c=>({...c, historico:c.historico||[], tags:c.tags||[], orcamento:c.orcamento||''}));
   proximoId = 85;
 }
+corrigirIdsDuplicados();
 atualizarBadges();
 renderVisao();
 verificarLogin();
 mostrarToast('🔄 Sincronizando com a nuvem…');
 
 // Sincroniza com a nuvem — fonte da verdade
+// Corrige IDs duplicados nos contatos em memória
+function corrigirIdsDuplicados() {
+  const vistos = new Set();
+  let proximo = Math.max(...contatos.map(c => c.id), 0) + 1;
+  let corrigiu = false;
+  contatos.forEach(c => {
+    if (vistos.has(c.id)) {
+      c.id = proximo++;
+      corrigiu = true;
+    } else {
+      vistos.add(c.id);
+    }
+  });
+  if (corrigiu) {
+    salvarDados();
+    console.log('IDs duplicados corrigidos automaticamente');
+  }
+}
+
 carregarDadosNuvem().then(carregouNuvem => {
   if (carregouNuvem) {
+    corrigirIdsDuplicados(); // corrige IDs duplicados que vieram da nuvem
     atualizarBadges();
     renderVisao();
     const paginaAtiva = document.querySelector('.page.active')?.id?.replace('page-','');
