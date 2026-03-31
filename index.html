@@ -1798,6 +1798,7 @@ function verificarLogin() {
 
 // ── SELEÇÃO MÚLTIPLA MENSAGENS ──
 let contatosSelecionados = new Set();
+let ultimoContatoSelecionado = null; // rastreia o último marcado
 let envioAtual = 0;
 
 function renderCheckContatos() {
@@ -1828,8 +1829,16 @@ function renderCheckContatos() {
 }
 
 function toggleContato(id, checked) {
-  if (checked) contatosSelecionados.add(id);
-  else contatosSelecionados.delete(id);
+  if (checked) {
+    contatosSelecionados.add(id);
+    ultimoContatoSelecionado = id; // sempre atualiza para o recém-marcado
+  } else {
+    contatosSelecionados.delete(id);
+    // se desmarcou o último, aponta para outro qualquer ainda selecionado
+    if (ultimoContatoSelecionado === id) {
+      ultimoContatoSelecionado = contatosSelecionados.size > 0 ? [...contatosSelecionados][0] : null;
+    }
+  }
   atualizarContadorSel();
   gerarMensagem();
 }
@@ -2342,9 +2351,11 @@ function gerarMensagem(){
     return;
   }
 
-  // Ordenar selecionados pela ordem visual (ID crescente = ordem de cadastro)
-  sels.sort((a,b) => a.id - b.id);
-  const primeiro = sels[0];
+  // Usa o último contato marcado como preview — mais intuitivo para a usuária
+  const primId = ultimoContatoSelecionado && contatosSelecionados.has(ultimoContatoSelecionado)
+    ? ultimoContatoSelecionado
+    : [...contatosSelecionados][0];
+  const primeiro = contatos.find(c => c.id === primId) || sels[0];
   let msg = '';
 
   if(templateAtivo === 'personalizada'){
