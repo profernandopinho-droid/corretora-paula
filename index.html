@@ -25,6 +25,15 @@
   --text:#e8eaf0;--muted:#6b7280;--muted2:#9ca3af;--sidebar:240px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
+:root.light{
+  --bg:#f0f2f7;--surface:#ffffff;--surface2:#e8ecf4;--surface3:#dde3f0;
+  --border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.15);
+  --gold:#b07d10;--gold2:#8a6008;--gold-dim:rgba(176,125,16,0.1);
+  --green:#1a8c40;--red:#c03030;--blue:#2a7de1;--purple:#6b4fb5;--pink:#b03070;--amber:#b06010;
+  --text:#1a1d2e;--muted:#6b7280;--muted2:#8892a4;
+}
+:root.light .whats-bubble{background:#d9fdd3;color:#111;}
+:root.light tr:hover td{background:rgba(0,0,0,0.02);}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow-x:hidden;}
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 20% 0%,rgba(201,168,76,0.04) 0%,transparent 60%),radial-gradient(ellipse 60% 40% at 80% 100%,rgba(74,158,255,0.03) 0%,transparent 60%);pointer-events:none;z-index:0;}
 
@@ -450,6 +459,7 @@ tr:hover td{background:rgba(255,255,255,0.018);}
     <button class="nav-btn" onclick="exportarDados()"><span class="nav-icon">💾</span>Exportar backup</button>
     <button class="nav-btn" onclick="forcarSincronizar()" style="color:var(--blue)"><span class="nav-icon">☁️</span>Salvar na nuvem agora</button>
     <button class="nav-btn" onclick="resetarDados()" style="color:var(--red)"><span class="nav-icon">↺</span>Restaurar original</button>
+    <button class="nav-btn" onclick="toggleTema()" id="btn-tema" style="margin-top:4px"><span class="nav-icon" id="tema-icon">☀️</span><span id="tema-label">Tema claro</span></button>
   </nav>
   <div class="sidebar-footer"><span class="save-dot"></span>Auto-save ativo</div>
 </aside>
@@ -545,8 +555,12 @@ tr:hover td{background:rgba(255,255,255,0.018);}
       </div>
       <!-- EMPREENDIMENTO -->
       <div style="margin-bottom:14px">
-        <div class="section-title">Empreendimento</div>
-        <input id="msg-emp" class="form-input" style="width:100%" placeholder="Ex: Residencial Aurora" oninput="gerarMensagem()">
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+          Empreendimento
+          <button onclick="salvarEmpFavorito()" style="background:none;border:none;color:var(--gold);font-size:0.72rem;cursor:pointer;padding:0">⭐ Salvar</button>
+        </div>
+        <input id="msg-emp" class="form-input" style="width:100%;margin-bottom:6px" placeholder="Ex: Residencial Aurora" oninput="gerarMensagem()">
+        <div id="emp-favoritos" style="display:flex;flex-wrap:wrap;gap:5px"></div>
       </div>
       <!-- FOLDER/IMAGEM -->
       <div style="margin-bottom:14px">
@@ -626,6 +640,13 @@ tr:hover td{background:rgba(255,255,255,0.018);}
           <div style="display:flex;gap:8px">
             <button class="btn sm" onclick="seqCopiar()" style="flex:1;justify-content:center">📋 Copiar</button>
             <button class="btn sm" onclick="seqPular()" style="flex:1;justify-content:center;color:var(--muted)">⏭ Pular</button>
+          </div>
+          <div id="seq-status-resp" style="display:none;background:var(--surface2);border-radius:10px;padding:10px;margin-bottom:4px">
+            <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;text-align:center">O contato respondeu?</div>
+            <div style="display:flex;gap:8px">
+              <button onclick="registrarResposta(true)" class="btn green" style="flex:1;justify-content:center;font-size:0.78rem;padding:8px">✅ Respondeu!</button>
+              <button onclick="registrarResposta(false)" class="btn" style="flex:1;justify-content:center;font-size:0.78rem;padding:8px;color:var(--muted)">❌ Não respondeu</button>
+            </div>
           </div>
           <button class="btn sm green" id="seq-btn-proximo" onclick="seqProximo()" style="justify-content:center;display:none">
             Próximo → <span id="seq-proximo-nome"></span>
@@ -2042,6 +2063,8 @@ function seqAbrirWhatsApp() {
   seqEnviados.push({ nome: c.nome, pulado: false });
   seqRenderEnviados();
 
+  const statusResp = document.getElementById('seq-status-resp');
+  if (statusResp) statusResp.style.display = '';
   const btnProx = document.getElementById('seq-btn-proximo');
   btnProx.style.display = '';
   if (seqIndex + 1 >= seqLista.length) {
@@ -2063,6 +2086,10 @@ function seqPular() {
 }
 
 function seqProximo() {
+  const cAtual = seqLista[seqIndex];
+  if (cAtual && !cAtual.followup) perguntarFollowUp(cAtual);
+  const statusResp = document.getElementById('seq-status-resp');
+  if (statusResp) statusResp.style.display = 'none';
   seqIndex++;
   document.getElementById('seq-btn-proximo').style.display = 'none';
   seqRenderAtual();
@@ -2208,7 +2235,7 @@ function renderContatos() {
     const tags=(c.tags||[]).map(t=>`<span class="tag ${t}">${TAG_EMOJI[t]||''} ${t}</span>`).join('');
     const histCount=(c.historico||[]).length;
     return`<tr>
-      <td><div class="td-name">${c.nome}</div>${c.origem?`<div style="font-size:0.67rem;color:var(--muted);margin-top:1px">via ${c.origem}</div>`:''}</td>
+      <td><div class="td-name">${c.nome}</div>${c.origem?`<div style="font-size:0.67rem;color:var(--muted);margin-top:1px">via ${c.origem}</div>`:''}<div style="font-size:0.65rem;color:var(--muted);margin-top:2px">${diasSemContato(c)}</div></td>
       <td><div class="td-phone">${c.tel||'—'}</div>${c.tel?`<a href="tel:${c.tel.replace(/\D/g,'')}" style="font-size:0.67rem;color:var(--green);text-decoration:none">📞 Ligar</a>`:''}</td>
       <td><div style="font-size:0.79rem;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.imovel||'—'}</div>${c.orcamento?`<div style="font-size:0.68rem;color:var(--gold2);margin-top:1px">💰 ${c.orcamento}</div>`:''}</td>
       <td>${tags||'<span style="color:var(--muted);font-size:0.72rem">—</span>'}</td>
@@ -2218,6 +2245,7 @@ function renderContatos() {
         <button class="icon-btn call" title="Ligar" onclick="ligar(${c.id})">📞</button>
         <button class="icon-btn whats" title="Mensagem WhatsApp" onclick="irParaMensagem(${c.id})">💬</button>
         <button class="icon-btn hist" title="Histórico${histCount>0?' ('+histCount+')':''}" onclick="abrirHistModal(${c.id})">📋${histCount>0?'<sup style=\'font-size:8px;color:var(--blue)\'>'+histCount+'</sup>':''}</button>
+        <button class="icon-btn" title="Nota rápida" onclick="editarObsInline(${c.id})" style="font-size:14px">${c.obs?'📝':'📋'}</button>
         <button class="icon-btn edit" title="Editar" onclick="editarContato(${c.id})">✏️</button>
         <button class="icon-btn del" title="Excluir" onclick="excluirContato(${c.id})">🗑</button>
       </div></td>
@@ -2244,9 +2272,11 @@ function renderContatos() {
           ${c.imovel?`<span>🏠 ${c.imovel}</span>`:''}
           ${c.orcamento?`<span style="color:var(--gold2)">💰 ${c.orcamento}</span>`:''}
           ${fuTxt?`<span class="fu-badge ${fuCls}" style="display:inline">${fuTxt}</span>`:''}
+          <span style="font-size:0.67rem;color:var(--muted)">${diasSemContato(c)}</span>
           ${tags}
         </div>
         <div class="cc-actions">
+          <button class="cc-btn" onclick="editarObsInline(${c.id})" style="font-size:0.72rem;background:var(--surface2)">${c.obs?'📝 '+c.obs.substring(0,30)+(c.obs.length>30?'…':''):'📝 Nota rápida'}</button>
           ${c.tel?`<button class="cc-btn green" onclick="ligar(${c.id})">📞 Ligar</button>`:''}
           <button class="cc-btn green" onclick="irParaMensagem(${c.id})">💬 WhatsApp</button>
           <button class="cc-btn blue" onclick="abrirHistModal(${c.id})">📋${histCount>0?' ('+histCount+')':''}</button>
@@ -2714,6 +2744,100 @@ function importarLista(){
   if(adicionados>0){salvarDados();atualizarBadges();}
 }
 
+// ── TEMA CLARO/ESCURO ──
+function toggleTema() {
+  const isLight = document.documentElement.classList.toggle('light');
+  document.getElementById('tema-icon').textContent = isLight ? '🌙' : '☀️';
+  document.getElementById('tema-label').textContent = isLight ? 'Tema escuro' : 'Tema claro';
+  localStorage.setItem('paula_tema', isLight ? 'light' : 'dark');
+}
+
+// ── EMPREENDIMENTOS FAVORITOS ──
+let empFavoritos = JSON.parse(localStorage.getItem('paula_emp_favoritos') || '[]');
+
+function renderEmpFavoritos() {
+  const el = document.getElementById('emp-favoritos');
+  if (!el) return;
+  el.innerHTML = empFavoritos.map((e, i) => `
+    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--gold-dim);border:1px solid rgba(201,168,76,0.3);border-radius:20px;padding:3px 10px;font-size:0.72rem;color:var(--gold2);cursor:pointer" onclick="usarEmpFavorito('${e.replace(/'/g,"\\'")}')">
+      ${e}
+      <button onclick="event.stopPropagation();removerEmpFavorito(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:10px">✕</button>
+    </span>`).join('');
+}
+
+function salvarEmpFavorito() {
+  const val = document.getElementById('msg-emp')?.value?.trim();
+  if (!val) { mostrarToast('Digite um empreendimento primeiro!'); return; }
+  if (empFavoritos.includes(val)) { mostrarToast('Já está nos favoritos!'); return; }
+  empFavoritos.push(val);
+  localStorage.setItem('paula_emp_favoritos', JSON.stringify(empFavoritos));
+  renderEmpFavoritos();
+  mostrarToast('⭐ Salvo nos favoritos!');
+}
+
+function usarEmpFavorito(nome) {
+  const inp = document.getElementById('msg-emp');
+  if (inp) { inp.value = nome; gerarMensagem(); }
+}
+
+function removerEmpFavorito(i) {
+  empFavoritos.splice(i, 1);
+  localStorage.setItem('paula_emp_favoritos', JSON.stringify(empFavoritos));
+  renderEmpFavoritos();
+}
+
+// ── STATUS DE RESPOSTA ──
+function registrarResposta(respondeu) {
+  const c = seqLista[seqIndex];
+  if (!c) return;
+  if (!c.historico) c.historico = [];
+  c.historico.push({ tipo: 'nota', texto: respondeu ? '✅ Respondeu a mensagem' : '❌ Não respondeu', data: new Date().toISOString() });
+  salvarDados();
+  const el = document.getElementById('seq-status-resp');
+  if (el) el.style.display = 'none';
+  mostrarToast(respondeu ? '✅ Registrado: Respondeu!' : '❌ Registrado: Não respondeu');
+  if (respondeu && !c.followup) perguntarFollowUp(c);
+}
+
+// ── FOLLOW-UP AUTOMÁTICO ──
+function perguntarFollowUp(c) {
+  const dias = prompt(`Agendar follow-up para ${c.nome.split(' ')[0]}?\nEm quantos dias? (deixe vazio para pular)`, '3');
+  if (dias === null || dias.trim() === '') return;
+  const n = parseInt(dias);
+  if (isNaN(n) || n < 1) return;
+  const dt = new Date();
+  dt.setDate(dt.getDate() + n);
+  c.followup = dt.toISOString().split('T')[0];
+  salvarDados();
+  atualizarBadges();
+  mostrarToast(`📅 Follow-up agendado para ${fmtData(c.followup)}`);
+}
+
+// ── NOTAS RÁPIDAS INLINE ──
+function editarObsInline(id) {
+  const c = contatos.find(x => x.id === id);
+  if (!c) return;
+  const obs = prompt(`Nota rápida — ${c.nome.split(' ')[0]}:`, c.obs || '');
+  if (obs === null) return;
+  c.obs = obs.trim();
+  salvarDados();
+  renderContatos();
+  mostrarToast('📝 Nota salva!');
+}
+
+// ── CONTADOR DE DIAS SEM CONTATO ──
+function diasSemContato(c) {
+  const hist = (c.historico || []);
+  if (!hist.length) return '💤 Sem registro';
+  const ultimo = new Date(hist[hist.length - 1].data);
+  const diff = Math.floor((new Date() - ultimo) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return '🟢 Contato hoje';
+  if (diff === 1) return '🟡 Há 1 dia';
+  if (diff <= 7) return `🟡 Há ${diff} dias`;
+  if (diff <= 30) return `🟠 Há ${diff} dias`;
+  return `🔴 Há ${diff} dias`;
+}
+
 // ── DETECÇÃO MOBILE ──
 function aplicarLayoutMobile() {
   const isMobile = window.innerWidth <= 768;
@@ -2745,6 +2869,14 @@ corrigirIdsDuplicados();
 atualizarBadges();
 renderVisao();
 verificarLogin();
+if (localStorage.getItem('paula_tema') === 'light') {
+  document.documentElement.classList.add('light');
+  const ti = document.getElementById('tema-icon');
+  const tl = document.getElementById('tema-label');
+  if (ti) ti.textContent = '🌙';
+  if (tl) tl.textContent = 'Tema escuro';
+}
+renderEmpFavoritos();
 mostrarToast('🔄 Sincronizando com a nuvem…');
 
 // Sincroniza com a nuvem — fonte da verdade
