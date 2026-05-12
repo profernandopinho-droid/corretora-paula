@@ -2086,8 +2086,6 @@ function seqPular() {
 }
 
 function seqProximo() {
-  const cAtual = seqLista[seqIndex];
-  if (cAtual && !cAtual.followup) perguntarFollowUp(cAtual);
   const statusResp = document.getElementById('seq-status-resp');
   if (statusResp) statusResp.style.display = 'none';
   seqIndex++;
@@ -2543,6 +2541,7 @@ function renderFollowup(){
       <div class="fu-info">
         <div class="fu-name">${c.nome}</div>
         <div class="fu-detail">${c.imovel||'—'} &nbsp;·&nbsp; <span class="status ${c.status}" style="display:inline-flex">${STATUS_LABEL[c.status]}</span></div>
+        ${c.origem?`<div style="font-size:0.7rem;color:var(--gold2);margin-top:2px">📋 ${c.origem}</div>`:''}
         ${c.obs?`<div style="font-size:0.71rem;color:var(--muted);margin-top:2px">${c.obs}</div>`:''}
       </div>
       <div class="fu-right">
